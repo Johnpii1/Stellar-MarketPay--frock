@@ -19,6 +19,7 @@ const swaggerSpecs = require('./config/swagger');
 const { requestLoggerMiddleware, logError, createServiceLogger } = require('./utils/logger');
 const { sanitizeMiddleware } = require('./middleware/sanitize');
 const { requireChoice } = require("./config/env");
+const { createCorsOptions } = require("./config/cors");
 
 const jobRoutes       = require("./routes/jobs");
 const applicationRoutes = require("./routes/applications");
@@ -225,13 +226,7 @@ app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpecs, {
   customSiteTitle: 'Stellar MarketPay API Documentation'
 }));
 
-const allowedOrigins = (process.env.ALLOWED_ORIGINS || "http://localhost:3000").split(",").map(o => o.trim());
-app.use(cors({
-  origin: (origin, cb) => (!origin || allowedOrigins.includes(origin)) ? cb(null, true) : cb(new Error("CORS blocked")),
-  methods: ["GET", "POST", "PATCH", "DELETE"],
-  allowedHeaders: ["Content-Type", "Authorization", "X-API-Key"],
-  credentials: true,
-}));
+app.use(cors(createCorsOptions({ logger: serviceLogger })));
 
 app.use((req, res, next) => {
   if (req.path === "/metrics") {
