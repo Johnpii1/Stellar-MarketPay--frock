@@ -24,6 +24,7 @@ jobs:
       - name: Build and push images
         run: |
           IMAGE_TAG=ghcr.io/${{ github.repository }}:${{ github.sha }}
+          IMAGE_TAG=$(echo "$IMAGE_TAG" | tr '[:upper:]' '[:lower:]')
           docker build -t $IMAGE_TAG ./frontend
           docker push $IMAGE_TAG
 
