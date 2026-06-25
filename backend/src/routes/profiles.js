@@ -22,6 +22,8 @@ const {
   endorseSkill,
   getClientSpendingAnalytics,
   getClientReputation,
+  blockFreelancer,
+  unblockFreelancer,
   getProfileStats,
   getResponseTime,
 } = require("../services/profileService");

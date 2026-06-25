@@ -7,7 +7,7 @@
 const express = require("express");
 const router = express.Router();
 const pool = require("../db/pool");
-const { authenticate } = require("../middleware/auth");
+const { verifyJWT: authenticate } = require("../middleware/auth");
 const { createServiceLogger } = require("../utils/logger");
 
 const logger = createServiceLogger("saved-searches");

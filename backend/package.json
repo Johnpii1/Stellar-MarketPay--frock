@@ -60,9 +60,13 @@
         ],
         "collectCoverageFrom": [
             "src/middleware/sanitize.js",
-            "src/services/profileService.js",
             "src/services/escrowService.js",
-            "src/services/disputeService.js"
+            "src/services/disputeService.js",
+            "src/services/referralService.js",
+            "src/services/daoService.js",
+            "src/services/developerService.js",
+            "src/services/aiService.js",
+            "src/services/weeklyDigestService.js"
         ],
         "coverageDirectory": "coverage",
         "coverageReporters": [
@@ -72,8 +76,8 @@
         ],
         "coverageThreshold": {
             "global": {
-                "lines": 60,
-                "branches": 50
+                "lines": 80,
+                "branches": 70
             }
         },
         "transformIgnorePatterns": [

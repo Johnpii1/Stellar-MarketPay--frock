@@ -627,6 +627,8 @@ function startWeeklyDigestScheduler() {
   }, delay).unref();
 }
 
-bootstrap();
+if (require.main === module) {
+  bootstrap();
+}
 
 module.exports = app;
