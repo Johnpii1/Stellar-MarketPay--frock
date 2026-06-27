@@ -25,7 +25,7 @@ jobs:
           cache-dependency-path: backend/package-lock.json
 
       - name: Start Database and Redis
-        run: docker-compose up -d postgres redis
+        run: docker compose up -d postgres redis
 
       - name: Install and Start Backend Server
         working-directory: backend
