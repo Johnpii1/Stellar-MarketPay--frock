@@ -14,8 +14,7 @@ const compressionMiddleware = require("./middleware/compression");
 const rateLimit = require("express-rate-limit");
 const { getClientIp } = require("./utils/clientIp");
 const { WebSocketServer } = require("ws");
-const jwt = require("jsonwebtoken");
-const nodemailer = require("nodemailer");
+const { sendEmail, smtpTransport } = require("./utils/email");
 const promClient = require("prom-client");
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpecs = require('./config/swagger');
@@ -23,6 +22,11 @@ const { requestLoggerMiddleware, logError, createServiceLogger } = require('./ut
 const { sanitizeMiddleware } = require('./middleware/sanitize');
 const { requireChoice } = require("./config/env");
 const { createCorsOptions } = require("./config/cors");
+const { verifyJWT, requireAdminRole } = require("./middleware/auth");
+const { ExpressAdapter } = require('@bull-board/express');
+const { createBullBoard } = require('@bull-board/api');
+const { BullAdapter } = require('@bull-board/api/bullAdapter');
+const { emailQueue } = require('./utils/queue');
 
 const jobRoutes       = require("./routes/jobs");
 const applicationRoutes = require("./routes/applications");
@@ -176,28 +180,11 @@ const indexerService = new IndexerService({
   contractId: process.env.CONTRACT_ID || process.env.ESCROW_CONTRACT_ID,
   broadcast: broadcastRealtime,
 });
-const smtpEnabled = Boolean(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
-const smtpTransport = smtpEnabled
-  ? nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: Number(process.env.SMTP_PORT || 587),
-      secure: false,
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
-      },
-    })
-  : null;
+
 const priceAlertService = new PriceAlertService({
   broadcast: broadcastRealtime,
   sendEmail: async ({ to, subject, text }) => {
-    if (!smtpTransport || !to) return;
-    await smtpTransport.sendMail({
-      from: process.env.SMTP_FROM || process.env.SMTP_USER,
-      to,
-      subject,
-      text,
-    });
+    await sendEmail({ to, subject, text });
   },
 });
 
@@ -319,6 +306,17 @@ app.use("/api/events",        eventsRoutes);
 app.use("/api/invitations",   invitationRoutes);
 app.use("/api/stats",         statsRoutes);
 app.use("/api/skills",        skillsRoutes);
+
+// Bull Board setup
+const serverAdapter = new ExpressAdapter();
+serverAdapter.setBasePath('/admin/queues');
+
+createBullBoard({
+  queues: [new BullAdapter(emailQueue)],
+  serverAdapter: serverAdapter,
+});
+
+app.use('/admin/queues', verifyJWT, requireAdminRole, serverAdapter.getRouter());
 
 app.use((err, req, res, next) => {
   void next;
@@ -515,6 +513,12 @@ async function bootstrap() {
   // Start platform metrics aggregator - runs hourly for Issue #561
   startPlatformMetricsAggregator();
 
+  // Start GDPR cleanup worker - runs daily
+  startGdprCleanupWorker();
+
+  // Start Bull email worker
+  require("./workers/emailWorker");
+
   server.listen(PORT, () => {
     serviceLogger.info({
       port: PORT,
@@ -585,14 +589,7 @@ async function startNotificationProcessor() {
   const notificationLogger = createServiceLogger('notifications');
   
   const sendEmailFn = async ({ to, subject, text, html }) => {
-    if (!smtpTransport || !to) return;
-    await smtpTransport.sendMail({
-      from: process.env.SMTP_FROM || process.env.SMTP_USER,
-      to,
-      subject,
-      text,
-      html,
-    });
+    await sendEmail({ to, subject, text, html });
   };
 
   // Run immediately on startup
@@ -664,14 +661,7 @@ function startWeeklyDigestScheduler() {
 
   // Reuse the same sendEmail transport already wired for notifications
   const sendEmailFn = async ({ to, subject, text, html }) => {
-    if (!smtpTransport || !to) return;
-    await smtpTransport.sendMail({
-      from: process.env.SMTP_FROM || process.env.SMTP_USER,
-      to,
-      subject,
-      text,
-      html,
-    });
+    await sendEmail({ to, subject, text, html });
   };
 
   /**
@@ -751,18 +741,29 @@ function startPlatformMetricsAggregator() {
   setInterval(runAggregation, 60 * 60 * 1000).unref();
 }
 
-if (process.env.NODE_ENV !== 'test') {
-  bootstrap();
+/**
+ * Periodically permanently delete profiles that have passed the 30-day grace period.
+ * Runs daily.
+ */
+function startGdprCleanupWorker() {
+  const { permanentlyDeleteExpiredProfiles } = require("./services/profileService");
+  const gdprLogger = createServiceLogger('gdpr-cleanup');
+
+  async function checkAndDelete() {
+    try {
+      const deletedKeys = await permanentlyDeleteExpiredProfiles();
+      if (deletedKeys.length > 0) {
+        gdprLogger.info({ count: deletedKeys.length }, 'Permanently deleted expired GDPR profiles');
+      }
+    } catch (err) {
+      logError(gdprLogger, err, { operation: 'gdpr_cleanup' });
+    }
+  }
+
+  // Run daily
+  setInterval(checkAndDelete, 24 * 60 * 60 * 1000).unref();
 }
 
-// Expose WebSocket internals for testing
-app._ws = {
-  server,
-  wsServer,
-  realtimeClients,
-  userClients,
-  broadcastRealtime,
-  broadcastToUser,
-};
+bootstrap();
 
 module.exports = app;

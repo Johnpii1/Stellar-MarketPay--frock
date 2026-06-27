@@ -25,7 +25,7 @@ import "@/styles/globals.css";
 import { ToastProvider } from "@/components/Toast";
 import { PriceProvider } from "@/contexts/PriceContext";
 import { ThemeProvider, useTheme } from "@/contexts/ThemeContext";
-import ShortcutsModal from "@/components/ShortcutsModal";
+
 import OfflineBanner from "@/components/OfflineBanner";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { useBackgroundSync } from "@/hooks/useBackgroundSync";
@@ -271,7 +271,7 @@ function App({ Component, pageProps }: AppProps) {
               </main>
               {publicKey && <FaucetButton publicKey={publicKey} />}
               <ThemeToggle />
-              <ShortcutsModal
+              <KeyboardShortcutsModal
                 isOpen={shortcutsModalOpen}
                 onClose={() => setShortcutsModalOpen(false)}
                 showJobDetailShortcuts={isJobDetailPage}

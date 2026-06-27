@@ -165,18 +165,6 @@ function createPgMock() {
         milestones: typeof params[9] === "string" ? JSON.parse(params[9]) : params[9],
         visibility: params[10],
       });
-      // Dynamically attach mock skills list from jobSkillsMap for this job
-      Object.defineProperty(row, 'skills', {
-        get() {
-          const skillIds = jobSkillsMap.get(row.id) || new Set();
-          return [...skillsMap.values()]
-            .filter(s => skillIds.has(s.id))
-            .map(s => s.display_name);
-        },
-        ,
-        configurable: true,
-        enumerable: true
-      });
       jobs.set(row.id, row);
       return { rows: [row] };
     }
